@@ -3,7 +3,21 @@ use flunion::vecmath::{
     vector2::{self, Vector2},
 };
 use once_cell::unsync::Lazy;
-use std::{f64::consts::PI, fs::File, io::Write};
+use std::{
+    f64::consts::PI,
+    fs::File,
+    io::Write,
+    ops::{Mul, Sub},
+};
+use tetra::{
+    graphics::{
+        self,
+        mesh::{Mesh, ShapeStyle},
+        Color, DrawParams,
+    },
+    math::Vec2,
+    Context, ContextBuilder, State,
+};
 
 const MAX_LOOP: usize = 1000;
 const H: f64 = 0.01;
@@ -207,14 +221,46 @@ fn init() -> Vec<Particle> {
 
     v
 }
-fn main() {
-    let mut ps = init();
 
-    for i in 0..300 {
-        calculate_density_and_pressure(&mut ps);
-        calculate_force(&mut ps);
-        calculate_position(&mut ps);
+struct GameState {
+    particles: Vec<Particle>,
+}
 
-        output_particles(i, &ps);
+impl GameState {
+    fn new(_ctx: &mut Context) -> tetra::Result<Self> {
+        Ok(Self { particles: init() })
     }
+}
+
+impl State for GameState {
+    fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+        calculate_density_and_pressure(&mut self.particles);
+        calculate_force(&mut self.particles);
+        calculate_position(&mut self.particles);
+
+        tetra::window::set_title(ctx, format!("fluid fps:{:.02}", tetra::time::get_fps(ctx)));
+        Ok(())
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
+        graphics::clear(ctx, Color::BLACK);
+
+        for p in &self.particles {
+            let scale = 800.0 / 20.0;
+            let p = Vec2::new(
+                p.position[0] as f32 * scale,
+                800.0 - p.position[1] as f32 * scale,
+            );
+            let circle = Mesh::circle(ctx, ShapeStyle::Stroke(1.0), p, 10.0)?;
+            circle.draw(ctx, DrawParams::new());
+        }
+
+        Ok(())
+    }
+}
+
+fn main() -> tetra::Result {
+    ContextBuilder::new("fluid", 800, 800)
+        .build()?
+        .run(GameState::new)
 }
