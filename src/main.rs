@@ -1,14 +1,6 @@
-use flunion::vecmath::{
-    self,
-    vector2::{self, Vector2},
-};
+use flunion::vecmath::vector2::{self, Vector2};
 use once_cell::unsync::Lazy;
-use std::{
-    f64::consts::PI,
-    fs::File,
-    io::Write,
-    ops::{Mul, Sub},
-};
+use std::{f64::consts::PI, fs::File, io::Write};
 use tetra::{
     graphics::{
         self,
@@ -19,28 +11,27 @@ use tetra::{
     Context, ContextBuilder, State,
 };
 
-const MAX_LOOP: usize = 1000;
-const H: f64 = 0.01;
+const SPH_RESTDENSITY: f64 = 600.0;
+const SPH_INTSTIFF: f64 = 1.0;
 const SPH_PMASS: f64 = 0.00020543;
-const SPH_INTSTIFF: f64 = 1.00;
+const SPH_SIMSCALE: f64 = 0.004;
+const H: f64 = 0.01;
+const DT: f64 = 0.004;
+const SPH_VISC: f64 = 0.2;
+const SPH_LIMIT: f64 = 200.0;
+const SPH_RADIUS: f64 = 0.004;
+const SPH_EPSILON: f64 = 0.00001;
 const SPH_EXTSTIFF: f64 = 10000.0;
 const SPH_EXTDAMP: f64 = 256.0;
+const SPH_PDIST: Lazy<f64> = Lazy::new(|| (SPH_PMASS / SPH_RESTDENSITY).powf(1.0 / 3.0));
+const MIN: [f64; 2] = [0.0, 0.0];
+const MAX: [f64; 2] = [20.0, 50.0];
+const INITMIN: [f64; 2] = [0.0, 0.0];
+const INITMAX: [f64; 2] = [10.0, 20.0];
 const POLY6KERN: Lazy<f64> = Lazy::new(|| 315.0 / (64.0 * PI * H.powf(9.0)));
 const SPIKYKERN: Lazy<f64> = Lazy::new(|| -45.0 / (PI * H.powf(6.0)));
 const LAPKERN: Lazy<f64> = Lazy::new(|| 45.0 / (PI * H.powf(6.0)));
-const DT: f64 = 0.004;
-const RADIUS: f64 = 0.004;
-const EPSILON: f64 = 0.00001;
-const INITMIN: [f64; 3] = [0.0, 0.0, 0.0];
-const INITMAX: [f64; 3] = [10.0, 20.0, 0.0];
-const MIN: [f64; 3] = [0.0, 0.0, -10.0];
-const MAX: [f64; 3] = [20.0, 20.0, 10.0];
-const SPH_RESTDENSITY: f64 = 600.0;
-const SPH_PDIST: Lazy<f64> = Lazy::new(|| (SPH_PMASS / SPH_RESTDENSITY).powf(1.0 / 3.0));
-const SPH_SIMSCALE: f64 = 0.004;
-const SPH_VISC: f64 = 0.2;
-const SPH_LIMIT: f64 = 200.0;
-const D: Lazy<f64> = Lazy::new(|| *SPH_PDIST * 0.87 / SPH_SIMSCALE);
+const D: Lazy<f64> = Lazy::new(|| *SPH_PDIST / SPH_SIMSCALE * 0.95);
 
 #[derive(Debug)]
 struct Particle {
@@ -144,15 +135,15 @@ fn calculate_position(ps: &mut Vec<Particle>) {
 
         // --- X ---
 
-        let diff = 2.0 * RADIUS - (p.position[0] - MIN[0]) * SPH_SIMSCALE;
-        if diff > EPSILON {
+        let diff = 2.0 * SPH_RADIUS - (p.position[0] - MIN[0]) * SPH_SIMSCALE;
+        if diff > SPH_EPSILON {
             let norm = Vector2::new(1.0, 0.0);
             let adj = SPH_EXTSTIFF * diff - SPH_EXTDAMP * vector2::dot(norm, p.velocity);
             accel.set_add(norm.mul(adj));
         }
 
-        let diff = 2.0 * RADIUS - (MAX[0] - p.position[0]) * SPH_SIMSCALE;
-        if diff > EPSILON {
+        let diff = 2.0 * SPH_RADIUS - (MAX[0] - p.position[0]) * SPH_SIMSCALE;
+        if diff > SPH_EPSILON {
             let norm = Vector2::new(-1.0, 0.0);
             let adj = SPH_EXTSTIFF * diff - SPH_EXTDAMP * vector2::dot(norm, p.velocity);
             accel.set_add(norm.mul(adj));
@@ -162,15 +153,15 @@ fn calculate_position(ps: &mut Vec<Particle>) {
 
         // --- Y ---
 
-        let diff = 2.0 * RADIUS - (p.position[1] - MIN[1]) * SPH_SIMSCALE;
-        if diff > EPSILON {
+        let diff = 2.0 * SPH_RADIUS - (p.position[1] - MIN[1]) * SPH_SIMSCALE;
+        if diff > SPH_EPSILON {
             let norm = Vector2::new(0.0, 1.0);
             let adj = SPH_EXTSTIFF * diff - SPH_EXTDAMP * vector2::dot(norm, p.velocity);
             accel.set_add(norm.mul(adj));
         }
 
-        let diff = 2.0 * RADIUS - (MAX[1] - p.position[1]) * SPH_SIMSCALE;
-        if diff > EPSILON {
+        let diff = 2.0 * SPH_RADIUS - (MAX[1] - p.position[1]) * SPH_SIMSCALE;
+        if diff > SPH_EPSILON {
             let norm = Vector2::new(0.0, -1.0);
             let adj = SPH_EXTSTIFF * diff - SPH_EXTDAMP * vector2::dot(norm, p.velocity);
             accel.set_add(norm.mul(adj));
@@ -251,7 +242,7 @@ impl State for GameState {
                 p.position[0] as f32 * scale,
                 800.0 - p.position[1] as f32 * scale,
             );
-            let circle = Mesh::circle(ctx, ShapeStyle::Stroke(1.0), p, 10.0)?;
+            let circle = Mesh::circle(ctx, ShapeStyle::Stroke(1.0), p, 20.0)?;
             circle.draw(ctx, DrawParams::new());
         }
 
