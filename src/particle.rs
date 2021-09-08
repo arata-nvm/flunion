@@ -1,9 +1,9 @@
 use std::fs::File;
 use std::io::Write;
 
-use crate::constants::*;
 use crate::vecmath::vector2;
 use crate::vecmath::vector2::Vector2;
+use crate::{constants::*, neighbors, new_neighbor_map, NeighborMap};
 
 #[derive(Debug)]
 pub struct Particle {
@@ -29,24 +29,26 @@ impl Particle {
 }
 
 pub fn step(ps: &mut Vec<Particle>) {
-    calculate_density_and_pressure(ps);
-    calculate_force(ps);
+    let map = new_neighbor_map(ps);
+    calculate_density_and_pressure(ps, &map);
+    calculate_force(ps, &map);
     calculate_position(ps);
 }
 
 // 密度と圧力の計算
-fn calculate_density_and_pressure(ps: &mut Vec<Particle>) {
+fn calculate_density_and_pressure(ps: &mut Vec<Particle>, map: &NeighborMap) {
     // 影響半径の距離
     let h2 = H * H;
 
     for i in 0..ps.len() {
         let mut sum = 0.0;
-        for j in 0..ps.len() {
+        let p1 = &ps[i];
+        let neighbors = neighbors(map, p1.position);
+        for j in neighbors {
             if i == j {
                 continue;
             }
 
-            let p1 = &ps[i];
             let p2 = &ps[j];
 
             // 2粒子間の距離
@@ -68,15 +70,16 @@ fn calculate_density_and_pressure(ps: &mut Vec<Particle>) {
 }
 
 // 力の計算
-fn calculate_force(ps: &mut Vec<Particle>) {
+fn calculate_force(ps: &mut Vec<Particle>, map: &NeighborMap) {
     for i in 0..ps.len() {
         let mut force = Vector2::zero();
-        for j in 0..ps.len() {
+        let p1 = &ps[i];
+        let neighbors = neighbors(map, p1.position);
+        for j in neighbors {
             if i == j {
                 continue;
             }
 
-            let p1 = &ps[i];
             let p2 = &ps[j];
 
             // 2粒子間の距離
